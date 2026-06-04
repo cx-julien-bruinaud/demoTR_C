@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+from markupsafe import escape
 from config import Config
 from models import db, User, Project, Task
 from database import init_db
@@ -138,9 +139,23 @@ def admin_dashboard():
     projects = Project.query.all()
     tasks = Task.query.all()
 
+    # Sanitize project data to prevent XSS attacks
+    # Even though Jinja2 has autoescaping, we sanitize here for defense in depth
+    sanitized_projects = []
+    for project in projects:
+        sanitized_project = type('SanitizedProject', (), {})()
+        sanitized_project.id = project.id
+        sanitized_project.name = escape(project.name) if project.name else ''
+        sanitized_project.description = escape(project.description) if project.description else ''
+        sanitized_project.owner_id = project.owner_id
+        sanitized_project.created_at = project.created_at
+        sanitized_project.updated_at = project.updated_at
+        sanitized_project.is_public = project.is_public
+        sanitized_projects.append(sanitized_project)
+
     return render_template('admin.html',
                          users=users,
-                         projects=projects,
+                         projects=sanitized_projects,
                          tasks=tasks,
                          request_id=request_id)
 
